@@ -1,0 +1,2210 @@
+import { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Send, CheckCircle, Github, Linkedin } from "lucide-react";
+import emailjs from '@emailjs/browser';
+import Lenis from 'lenis';
+import { ThemeSwitch } from "@/components/ui/ThemeSwitch";
+
+const Index = () => {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [showEducation, setShowEducation] = useState(false);
+  const [showExperience, setShowExperience] = useState(false);
+  const [showBackground, setShowBackground] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [activeSection, setActiveSection] = useState('hero');
+  const [isNavExpanded, setIsNavExpanded] = useState(false);
+  
+  // Contact form states
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    message: ''
+  });
+  const formRef = useRef<HTMLFormElement>(null);
+  const lenisRef = useRef<Lenis | null>(null);
+
+  // EmailJS configuration - Secured with environment variables
+  const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+  const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+  const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+  // Force all incoming messages to this Gmail address
+  const DEFAULT_TO_EMAIL = 'dhanrajsinghaditya@gmail.com';
+
+  useEffect(() => {
+    if (!EMAILJS_PUBLIC_KEY) {
+      // don't initialize emailjs without a public key; keep a clear console message for debugging
+      console.warn('EmailJS public key not found. Set VITE_EMAILJS_PUBLIC_KEY in your environment to enable contact form sending.');
+      return;
+    }
+
+    try {
+      emailjs.init(EMAILJS_PUBLIC_KEY);
+    } catch (err) {
+      console.error('Failed to initialize EmailJS:', err);
+    }
+  }, []);
+
+  // Parallax effect for background
+  useEffect(() => {
+    if (theme !== "dark") return;
+    
+    const handleScroll = () => {
+      const scrolled = window.pageYOffset;
+      const parallaxElements = document.querySelectorAll('.parallax-element');
+      parallaxElements.forEach((element, index) => {
+        const speed = (index + 1) * 0.1;
+        const yPos = -(scrolled * speed);
+        (element as HTMLElement).style.transform = `translateY(${yPos}px)`;
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [theme]);
+
+  // Initialize Lenis for smooth scrolling
+  useEffect(() => {
+    const lenis = new Lenis({
+      duration: theme === "dark" ? 1.8 : 1.4,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      smoothWheel: true,
+      wheelMultiplier: theme === "dark" ? 0.8 : 1.0,
+      touchMultiplier: 2,
+      infinite: false,
+    });
+
+    lenisRef.current = lenis;
+
+    function raf(time: number) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+
+    requestAnimationFrame(raf);
+
+    // Update scroll progress
+    lenis.on('scroll', ({ scroll, limit }: { scroll: number; limit: number }) => {
+      const progress = Math.min(scroll / limit, 1);
+      setScrollProgress(progress);
+    });
+
+    return () => {
+      lenis.destroy();
+      lenisRef.current = null;
+    };
+  }, [theme]);
+
+  // Enhanced scroll to section function
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element && lenisRef.current) {
+      // Calculate proper offset based on section
+      const offset = -80;
+      
+      lenisRef.current.scrollTo(element, {
+        offset: offset,
+        duration: theme === "dark" ? 1.8 : 1.4,
+        easing: (t) => {
+          // Smooth easeOutExpo easing for better scroll feel
+          return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+        },
+      });
+    }
+  };
+
+  // Scroll reveal animations
+  useEffect(() => {
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -100px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+        }
+      });
+    }, observerOptions);
+
+    // Observe all scroll-reveal elements
+    const revealElements = document.querySelectorAll('.scroll-reveal');
+    revealElements.forEach((el) => observer.observe(el));
+
+    return () => {
+      revealElements.forEach((el) => observer.unobserve(el));
+    };
+  }, []);
+
+  // Section tracking for active navigation
+  useEffect(() => {
+    const sections = ['hero', 'about', 'testimonials', 'contact'];
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            setActiveSection(entry.target.id);
+          }
+        });
+      },
+      { 
+        threshold: [0.3, 0.5, 0.7],
+        rootMargin: '-20% 0px -20% 0px' 
+      }
+    );
+
+    sections.forEach((sectionId) => {
+      const element = document.getElementById(sectionId);
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.name || !formData.email || !formData.message) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    // Validate EmailJS configuration before attempting to send
+    if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
+      console.error('EmailJS not configured. One or more environment variables are missing:', {
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        EMAILJS_PUBLIC_KEY: !!EMAILJS_PUBLIC_KEY
+      });
+      alert('Contact form is not configured. Please set EmailJS environment variables.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      // Send email using EmailJS. We explicitly force the recipient to DEFAULT_TO_EMAIL so
+      // messages always go to the owner's Gmail address regardless of client input.
+      const templateParams = {
+        from_name: formData.name,
+        from_email: formData.email,
+        message: formData.message,
+        // Ensure recipient is always the Gmail provided by the owner
+        to_email: DEFAULT_TO_EMAIL,
+        reply_to: formData.email,
+      };
+
+      const result = await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams,
+        EMAILJS_PUBLIC_KEY
+      );
+
+      if (result && result.status === 200) {
+        setIsSubmitted(true);
+        setFormData({ name: '', email: '', message: '' });
+
+        // Reset success message after 5 seconds
+        setTimeout(() => {
+          setIsSubmitted(false);
+        }, 5000);
+      } else {
+        console.warn('EmailJS responded with non-200 status:', result);
+        alert('Failed to send message. Please try again.');
+      }
+    } catch (error) {
+      console.error('EmailJS Error:', error);
+      alert('Failed to send message. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    // Apply theme class to document with smooth transition
+    document.documentElement.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+    document.documentElement.classList.toggle("light-theme", theme === "light");
+    document.documentElement.classList.toggle("dark-theme", theme === "dark");
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setIsTransitioning(true);
+    
+    // Create a smooth fade transition effect
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: ${theme === "dark" ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.15)"};
+      z-index: 9999;
+      opacity: 0;
+      backdrop-filter: blur(5px);
+      transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Trigger overlay fade in
+    setTimeout(() => {
+      overlay.style.opacity = '1';
+    }, 10);
+    
+    // Change theme during peak opacity
+    setTimeout(() => {
+      setTheme(theme === "dark" ? "light" : "dark");
+    }, 200);
+    
+    // Fade out overlay and cleanup
+    setTimeout(() => {
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        document.body.removeChild(overlay);
+        setIsTransitioning(false);
+      }, 400);
+    }, 400);
+  };
+
+  return (
+    <div 
+      className={`min-h-screen relative overflow-x-hidden`}
+      style={{
+        background: theme === "dark" 
+          ? `
+            linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(22, 33, 62, 0.9) 25%, rgba(15, 52, 96, 0.85) 50%, rgba(26, 26, 46, 0.9) 75%, rgba(0, 0, 0, 0.95) 100%),
+            url('/cool_blue_ocean_mountain_tree_branches_nature_background_hd_dark_blue-1920x1080.jpg')
+          `
+          : "linear-gradient(135deg, #fdf2f8 0%, #fef7f7 25%, #fff1f2 50%, #fdf2f8 75%, rgb(249, 215, 224) 100%)",
+        backgroundSize: theme === "dark" ? "cover" : "auto",
+        backgroundPosition: theme === "dark" ? "center center" : "initial",
+        backgroundAttachment: theme === "dark" ? "fixed" : "initial",
+        color: theme === "dark" ? "#ffffff" : "#111827",
+        transition: "all 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
+      }}
+    >
+      
+      {/* Scroll Progress Indicator */}
+      <div 
+        className={`scroll-progress ${theme === "light" ? "light-theme" : ""}`}
+        style={{
+          transform: `scaleX(${scrollProgress})`,
+          opacity: scrollProgress > 0.01 ? 1 : 0
+        }}
+      ></div>
+      
+      {/* Animated Background Elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        {/* Creative Background Overlay for Dark Mode */}
+        {theme === "dark" && (
+          <>
+            {/* Subtle pattern overlay */}
+            <div 
+              className="absolute inset-0 opacity-10"
+              style={{
+                backgroundImage: `
+                  radial-gradient(circle at 25% 25%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+                  radial-gradient(circle at 75% 75%, rgba(0, 255, 255, 0.08) 0%, transparent 50%),
+                  linear-gradient(45deg, rgba(255, 255, 255, 0.02) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.02) 75%)
+                `,
+                backgroundSize: "400px 400px, 300px 300px, 60px 60px"
+              }}
+            ></div>
+            
+            {/* Enhanced floating neon elements */}
+            <div 
+              className="absolute top-1/4 left-1/6 w-40 h-40 rounded-full opacity-15 animate-float"
+              style={{
+                background: "radial-gradient(circle, rgba(255, 0, 255, 0.3) 0%, rgba(0, 255, 255, 0.1) 70%, transparent 100%)",
+                filter: "blur(40px)",
+                animation: "float 12s ease-in-out infinite"
+              }}
+            ></div>
+            <div 
+              className="absolute top-2/3 right-1/4 w-32 h-32 rounded-full opacity-12 animate-float"
+              style={{
+                background: "radial-gradient(circle, rgba(0, 255, 255, 0.4) 0%, rgba(255, 0, 255, 0.1) 70%, transparent 100%)",
+                filter: "blur(35px)",
+                animation: "float 8s ease-in-out infinite reverse"
+              }}
+            ></div>
+            <div 
+              className="absolute bottom-1/4 left-1/3 w-24 h-24 rounded-full opacity-18 animate-float"
+              style={{
+                background: "radial-gradient(circle, rgba(0, 100, 255, 0.3) 0%, transparent 70%)",
+                filter: "blur(25px)",
+                animation: "float 10s ease-in-out infinite"
+              }}
+            ></div>
+          </>
+        )}
+        
+        {/* Light mode floating elements */}
+        {theme === "light" && (
+          <>
+            <div 
+              className="absolute top-1/4 left-1/4 w-32 h-32 rounded-full opacity-20 animate-float"
+              style={{
+                background: "radial-gradient(circle, rgba(236, 72, 153, 0.3) 0%, transparent 70%)",
+                filter: "blur(20px)",
+                animation: "float 8s ease-in-out infinite"
+              }}
+            ></div>
+            <div 
+              className="absolute top-3/4 right-1/4 w-24 h-24 rounded-full opacity-15 animate-float"
+              style={{
+                background: "radial-gradient(circle, rgba(219, 39, 119, 0.4) 0%, transparent 70%)",
+                filter: "blur(15px)",
+                animation: "float 6s ease-in-out infinite reverse"
+              }}
+            ></div>
+          </>
+        )}
+      </div>
+      
+      {/* 3D Theme Switch */}
+      <ThemeSwitch 
+        theme={theme}
+        onToggle={toggleTheme}
+        isTransitioning={isTransitioning}
+      />
+      
+      {/* Cool Floating Navigation Menu */}
+      <div className="fixed left-4 top-1/2 transform -translate-y-1/2 z-40 hidden lg:block xl:left-6">
+        <nav 
+          className={`relative flex flex-col space-y-3 p-3 rounded-2xl backdrop-blur-lg transition-all duration-300 group/nav ${
+            theme === "dark" 
+              ? "bg-gray-900/90 border border-neon-pink/30 shadow-xl shadow-black/30" 
+              : "bg-white/90 border border-pink-300/50 shadow-xl shadow-pink-500/10"
+          }`}
+          style={theme === "dark" ? {
+            background: "linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(31, 41, 55, 0.9) 100%)",
+            backdropFilter: "blur(25px)"
+          } : {}}
+        >
+          
+          {/* Subtle hover glow */}
+          <div className={`absolute inset-0 rounded-2xl opacity-0 group-hover/nav:opacity-100 transition-opacity duration-300 ${
+            theme === "dark"
+              ? "shadow-lg shadow-neon-pink/20"
+              : "shadow-lg shadow-pink-500/20"
+          }`}></div>
+
+          {/* Navigation items */}
+          <div className="relative z-10 space-y-2">
+            {[
+              { id: 'hero', label: 'Home', icon: '🏠' },
+              { id: 'about', label: 'About', icon: '👨‍💻' },
+              { id: 'testimonials', label: 'Reviews', icon: '💬' },
+              { id: 'contact', label: 'Contact', icon: '📧' }
+            ].map((item, index) => {
+              const isActive = activeSection === item.id;
+              return (
+                <div key={item.id} className="relative group/item">
+                  <button
+                    onClick={() => scrollToSection(item.id)}
+                    className={`relative flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
+                      isActive
+                        ? theme === "dark"
+                          ? "bg-neon-pink/25 border-2 border-neon-pink/50 shadow-md shadow-neon-pink/30"
+                          : "bg-pink-500/20 border-2 border-pink-500/50 shadow-md shadow-pink-500/30"
+                        : theme === "dark"
+                          ? "bg-gray-800/50 border border-gray-700/50 hover:border-neon-pink/40 hover:bg-gray-700/70 hover:scale-105"
+                          : "bg-white/70 border border-pink-200/40 hover:border-pink-400/60 hover:bg-pink-50/80 hover:scale-105"
+                    }`}
+                  >
+                    {/* Simple icon */}
+                    <span className={`text-xl transition-all duration-200 ${
+                      isActive 
+                        ? theme === "dark" ? "text-neon-pink" : "text-pink-600"
+                        : theme === "dark" ? "text-gray-300 group-hover/item:text-neon-pink" : "text-gray-600 group-hover/item:text-pink-600"
+                    }`}>
+                      {item.icon}
+                    </span>
+                  </button>
+
+                  {/* Clean tooltip */}
+                  <div className={`absolute left-full ml-3 top-1/2 transform -translate-y-1/2 opacity-0 group-hover/item:opacity-100 transition-all duration-200 pointer-events-none ${
+                    theme === "dark"
+                      ? "bg-gray-800/95 text-white border border-gray-700"
+                      : "bg-white/95 text-gray-800 border border-gray-300"
+                  } px-3 py-1 rounded-lg backdrop-blur-sm text-sm font-medium whitespace-nowrap shadow-lg`}>
+                    {item.label}
+                    
+                    {/* Simple arrow */}
+                    <div className={`absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent ${
+                      theme === "dark" 
+                        ? "border-r-gray-800/95" 
+                        : "border-r-white/95"
+                    }`}></div>
+                  </div>
+
+                  {/* Active indicator line */}
+                  {isActive && (
+                    <div className={`absolute -right-1 top-1/2 transform -translate-y-1/2 w-0.5 h-6 rounded-full ${
+                      theme === "dark"
+                        ? "bg-neon-pink"
+                        : "bg-pink-500"
+                    }`}></div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Minimal progress indicator */}
+          <div className={`mt-2 w-full h-0.5 rounded-full overflow-hidden ${
+            theme === "dark" ? "bg-gray-700/50" : "bg-pink-200/50"
+          }`}>
+            <div 
+              className={`h-full transition-all duration-300 ${
+                theme === "dark" 
+                  ? "bg-neon-pink" 
+                  : "bg-pink-500"
+              }`}
+              style={{ width: `${scrollProgress * 100}%` }}
+            ></div>
+          </div>
+        </nav>
+      </div>
+
+      {/* Hero Section with smooth background transitions */}
+      <section 
+        id="hero"
+        className={`min-h-[100vh] flex items-center container mx-auto px-4 py-20 md:py-32 relative`}
+        style={{
+          transition: "all 1s cubic-bezier(0.4, 0, 0.2, 1)"
+        }}
+      >
+        
+        <div className="grid lg:grid-cols-2 gap-12 items-center w-full relative z-10">
+          {/* Left side - Avatar with enhanced animations */}
+          <div className="flex flex-col justify-center items-center space-y-6">
+            <div className="flex flex-col items-center space-y-4 lg:translate-x-4">
+              <div className="relative w-64 h-64 md:w-80 md:h-80 flex items-center justify-center group/avatar">
+                <img
+                  src="/avatar.png"
+                  alt="Aditya Dhanraj Singh Avatar"
+                  className={`w-full h-full object-cover animate-smooth-bounce border-4 transition-all duration-1000 group-hover/avatar:scale-110 ${
+                    theme === "dark" ? "border-neon-pink" : "border-pink-500"
+                  }`}
+                  style={{
+                    boxShadow: theme === "dark"
+                      ? "0 0 40px 10px #ff00ff80, 0 0 80px 20px #00ffff40, 0 0 0 8px #1a1a2e inset"
+                      : "0 0 30px 8px rgba(236, 72, 153, 0.4), 0 0 60px 15px rgba(219, 39, 119, 0.2), 0 0 0 8px rgba(252, 231, 243, 0.9) inset, inset 0 0 0 4px rgba(236, 72, 153, 0.15)",
+                    background: theme === "dark" 
+                      ? "black" 
+                      : "linear-gradient(135deg, rgba(252, 231, 243, 0.8) 0%, rgba(251, 207, 232, 0.6) 50%, rgba(250, 182, 217, 0.4) 100%)",
+                    objectPosition: "43% center",
+                    objectFit: "cover",
+                    borderRadius: "30%",
+                    filter: isTransitioning ? "blur(2px)" : "blur(0px)",
+                    transition: "all 1s cubic-bezier(0.4, 0, 0.2, 1)",
+                    transform: "scale(1)"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "scale(1.05)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "scale(1)";
+                  }}
+                />
+                
+                {/* Enhanced glow effect */}
+                <div
+                  className={`absolute inset-0 border-4 animate-pulse transition-all duration-1000 ${
+                    theme === "dark" ? "border-neon-pink/50" : "border-pink-500/60"
+                  }`}
+                  style={{ 
+                    borderRadius: "30%",
+                    opacity: isTransitioning ? 0.3 : 1
+                  }}
+                ></div>
+                
+                <div
+                  className="absolute inset-0 pointer-events-none transition-all duration-1000"
+                  style={{
+                    boxShadow: theme === "dark"
+                      ? "0 0 60px 20px #ff00ff55, 0 0 120px 40px #00ffff33"
+                      : "0 0 40px 15px rgba(236, 72, 153, 0.3), 0 0 80px 25px rgba(219, 39, 119, 0.15)",
+                    borderRadius: "30%",
+                    opacity: isTransitioning ? 0.5 : 1
+                  }}
+                ></div>
+              </div>
+            
+              <h3 
+                className={`text-xl md:text-2xl lg:text-3xl font-michroma font-bold transition-all duration-1000 ${
+                  theme === "dark" 
+                    ? "bg-gradient-to-r from-white via-neon-pink to-neon-blue bg-clip-text text-transparent" 
+                    : "bg-gradient-to-r from-gray-800 via-pink-600 to-rose-600 bg-clip-text text-transparent"
+                }`}
+                style={{
+                  textShadow: theme === "dark" 
+                    ? "0 0 20px rgba(255, 0, 255, 0.4), 0 0 40px rgba(0, 255, 255, 0.3)"
+                    : "0 0 15px rgba(236, 72, 153, 0.4), 0 0 25px rgba(219, 39, 119, 0.2)",
+                  filter: isTransitioning ? "blur(1px)" : "blur(0px)"
+                }}
+              >
+                Aditya.dev
+              </h3>
+            </div>
+          </div>
+
+          {/* Right side - Content with smooth transitions */}
+          <div 
+            className="text-center lg:text-left space-y-8"
+            style={{
+              transition: "all 0.8s cubic-bezier(0.4, 0, 0.2, 1)",
+              filter: isTransitioning ? "blur(1px)" : "blur(0px)"
+            }}
+          >
+            <h1 className={`text-4xl md:text-6xl lg:text-7xl font-michroma font-bold leading-tight transition-colors duration-1000 ${
+              theme === "light" ? "text-gray-900" : "text-white"
+            }`}>
+              Hi, I'm
+              <br />
+                <span className={`transition-all duration-1000 ${theme === "dark" 
+                ? "bg-gradient-to-r from-neon-pink to-neon-blue" 
+                : "bg-gradient-to-r from-pink-600 to-rose-600"} bg-clip-text text-transparent`}>
+                Aditya Dhanraj Singh
+              </span>
+              <br />
+              <span className={`text-3xl md:text-4xl lg:text-5xl transition-colors duration-1000 ${
+                theme === "dark" ? "text-gray-300" : "text-gray-600"
+              }`}>
+                Full-Stack Developer & AI Engineer
+              </span>
+            </h1>
+
+            {/* Enhanced buttons with smooth transitions */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className={`border-2 transition-all duration-500 ${theme === "dark" 
+                    ? "border-neon-pink bg-transparent text-neon-pink hover:bg-neon-pink hover:text-black" 
+                    : "border-pink-500 bg-transparent text-pink-600 hover:bg-pink-500 hover:text-white shadow-lg shadow-pink-500/20"} 
+                    font-semibold relative overflow-hidden group hover:scale-105 hover:-translate-y-1`}
+                  onClick={() => {
+                    scrollToSection('projects');
+                  }}
+                >
+                  <span className="relative z-10">View Projects</span>
+                  <div className={`absolute inset-0 transition-all duration-500 ${theme === "dark" 
+                    ? "bg-gradient-to-r from-neon-pink/20 to-neon-purple/20"
+                    : "bg-gradient-to-r from-pink-500/20 to-rose-500/20"
+                  } opacity-0 group-hover:opacity-100`}></div>
+                </Button>              <Button
+                variant="outline"
+                size="lg"
+                className={`border-2 transition-all duration-500 ${theme === "dark" 
+                  ? "border-neon-blue bg-transparent text-neon-blue hover:bg-neon-blue hover:text-black" 
+                  : "border-rose-500 bg-transparent text-rose-600 hover:bg-rose-500 hover:text-white shadow-lg shadow-rose-500/20"} 
+                  font-semibold relative overflow-hidden group hover:scale-105 hover:-translate-y-1`}
+                asChild
+              >
+                <a href="https://cyan-katinka-65.tiiny.site/" target="_blank" rel="noopener noreferrer">
+                  <span className="relative z-10">Download Resume</span>
+                  <div className={`absolute inset-0 transition-all duration-500 ${theme === "dark" 
+                    ? "bg-gradient-to-r from-neon-blue/20 to-neon-cyan/20"
+                    : "bg-gradient-to-r from-rose-500/20 to-pink-500/20"
+                  } opacity-0 group-hover:opacity-100`}></div>
+                </a>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="lg"
+                className={`border-2 transition-all duration-500 ${theme === "dark" 
+                  ? "border-neon-purple bg-transparent text-neon-purple hover:bg-neon-purple hover:text-black" 
+                  : "border-pink-600 bg-transparent text-pink-700 hover:bg-pink-600 hover:text-white shadow-lg shadow-pink-600/20"} 
+                  font-semibold relative overflow-hidden group hover:scale-105 hover:-translate-y-1`}
+                onClick={() => {
+                  scrollToSection('contact');
+                }}
+              >
+                <span className="relative z-10">Hire Me</span>
+                <div className={`absolute inset-0 transition-all duration-500 ${theme === "dark" 
+                  ? "bg-gradient-to-r from-neon-purple/20 to-neon-pink/20"
+                  : "bg-gradient-to-r from-pink-600/20 to-rose-600/20"
+                } opacity-0 group-hover:opacity-100`}></div>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="lg"
+                className={`border-2 transition-all duration-500 ${theme === "dark" 
+                  ? "border-neon-cyan bg-transparent text-neon-cyan hover:bg-neon-cyan hover:text-black" 
+                  : "border-blue-500 bg-transparent text-blue-600 hover:bg-blue-500 hover:text-white shadow-lg shadow-blue-500/20"} 
+                  font-semibold relative overflow-hidden group hover:scale-105 hover:-translate-y-1`}
+                asChild
+              >
+                <a href="https://www.linkedin.com/in/aditya-dhanraj-singh-948433292/" target="_blank" rel="noopener noreferrer">
+                  <span className="relative z-10 flex items-center gap-2">
+                    <Linkedin className="w-5 h-5" />
+                    LinkedIn
+                  </span>
+                  <div className={`absolute inset-0 transition-all duration-500 ${theme === "dark" 
+                    ? "bg-gradient-to-r from-neon-cyan/20 to-neon-blue/20"
+                    : "bg-gradient-to-r from-blue-500/20 to-sky-500/20"
+                  } opacity-0 group-hover:opacity-100`}></div>
+                </a>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="lg"
+                className={`border-2 transition-all duration-500 ${theme === "dark" 
+                  ? "border-gray-400 bg-transparent text-gray-400 hover:bg-gray-400 hover:text-black" 
+                  : "border-gray-600 bg-transparent text-gray-700 hover:bg-gray-600 hover:text-white shadow-lg shadow-gray-600/20"} 
+                  font-semibold relative overflow-hidden group hover:scale-105 hover:-translate-y-1`}
+                asChild
+              >
+                <a href="https://github.com/aditya29625" target="_blank" rel="noopener noreferrer">
+                  <span className="relative z-10 flex items-center gap-2">
+                    <Github className="w-5 h-5" />
+                    GitHub
+                  </span>
+                  <div className={`absolute inset-0 transition-all duration-500 ${theme === "dark" 
+                    ? "bg-gradient-to-r from-gray-400/20 to-gray-500/20"
+                    : "bg-gradient-to-r from-gray-600/20 to-gray-700/20"
+                  } opacity-0 group-hover:opacity-100`}></div>
+                </a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* About Me & Tech Stack Section - MOVED DOWN */}
+      <section id="about" className={`container mx-auto px-4 lg:px-6 xl:px-4 py-32 mt-20 relative scroll-reveal ${
+        theme === "light" ? "text-gray-800" : ""
+      }`}>
+        
+        
+        <div className="grid lg:grid-cols-2 gap-16 relative z-10 lg:ml-16 xl:ml-0">
+          {/* About Me */}
+          <div>
+            <h2 className="text-3xl md:text-4xl font-michroma font-bold mb-8">
+              <span className={`${theme === "dark" 
+                ? "bg-gradient-to-r from-neon-purple to-neon-pink" 
+                : "bg-gradient-to-r from-pink-600 to-rose-600"} bg-clip-text text-transparent`}>
+                About Me
+              </span>
+            </h2>
+
+            <div className="flex flex-wrap gap-3 mb-8">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowEducation(!showEducation);
+                  setShowExperience(false);
+                  setShowBackground(false);
+                }}
+                className={`border ${theme === "dark" 
+                  ? "border-neon-cyan/50 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan" 
+                  : "border-pink-500/50 bg-pink-500/10 text-pink-600 hover:bg-pink-500 shadow-md shadow-pink-500/20"} 
+                  hover:text-${theme === "dark" ? "black" : "white"} transition-all duration-150 rounded-full px-6 ${
+                  showEducation ? (theme === "dark" ? "bg-neon-cyan text-black" : "bg-pink-500 text-white") : ""
+                }`}
+              >
+                Education
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowExperience(!showExperience);
+                  setShowEducation(false);
+                  setShowBackground(false);
+                }}
+                className={`border ${theme === "dark" 
+                  ? "border-neon-cyan/50 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan" 
+                  : "border-pink-500/50 bg-pink-500/10 text-pink-600 hover:bg-pink-500 shadow-md shadow-pink-500/20"} 
+                  hover:text-${theme === "dark" ? "black" : "white"} transition-all duration-150 rounded-full px-6 ${
+                  showExperience ? (theme === "dark" ? "bg-neon-cyan text-black" : "bg-pink-500 text-white") : ""
+                }`}
+              >
+                Experience
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBackground(!showBackground);
+                  setShowEducation(false);
+                  setShowExperience(false);
+                }}
+                className={`border ${theme === "dark" 
+                  ? "border-neon-cyan/50 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan" 
+                  : "border-pink-500/50 bg-pink-500/10 text-pink-600 hover:bg-pink-500 shadow-md shadow-pink-500/20"} 
+                  hover:text-${theme === "dark" ? "black" : "white"} transition-all duration-150 rounded-full px-6 ${
+                  showBackground ? (theme === "dark" ? "bg-neon-cyan text-black" : "bg-pink-500 text-white") : ""
+                }`}
+              >
+                Background
+              </Button>
+            </div>
+
+            {/* Education Card - Appears when Education button is clicked */}
+            {showEducation && (
+              <div className="mb-8 animate-in slide-in-from-top-4 duration-300">
+                <Card className={`${
+                  theme === "dark" 
+                    ? "bg-gradient-to-br from-gray-800/80 to-gray-900/60 border border-neon-cyan/30 shadow-2xl shadow-neon-cyan/20" 
+                    : "bg-gradient-to-br from-white/95 to-pink-50/90 border border-pink-300/60 shadow-2xl shadow-pink-500/20 backdrop-blur-lg"
+                } p-6 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300`}
+                style={theme === "light" ? {
+                  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 231, 243, 0.8) 50%, rgba(251, 207, 232, 0.6) 100%)",
+                  backdropFilter: "blur(15px)"
+                } : {}}>
+                  
+                  {/* Decorative elements */}
+                  <div className={`absolute top-0 left-0 w-full h-1 ${
+                    theme === "dark" 
+                      ? "bg-gradient-to-r from-neon-cyan via-neon-blue to-neon-purple" 
+                      : "bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600"
+                  }`}></div>
+                  
+                  {theme === "dark" && (
+                    <>
+                      <div className="absolute top-4 right-4 w-2 h-2 bg-neon-cyan rounded-full animate-ping"></div>
+                      <div className="absolute bottom-4 left-4 w-1 h-1 bg-neon-blue rounded-full animate-pulse"></div>
+                    </>
+                  )}
+                  
+                  {theme === "light" && (
+                    <>
+                      <div className="absolute top-4 right-4 w-2 h-2 bg-pink-500/60 rounded-full animate-ping"></div>
+                      <div className="absolute bottom-4 left-4 w-1 h-1 bg-rose-500/60 rounded-full animate-pulse"></div>
+                      <div className="absolute top-1/2 right-2 w-1 h-4 bg-gradient-to-t from-pink-400/20 to-transparent"></div>
+                    </>
+                  )}
+
+                  <div className="space-y-6 relative z-10">
+                    {/* Header */}
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        theme === "dark" 
+                          ? "bg-neon-cyan/20 border border-neon-cyan/40" 
+                          : "bg-pink-500/20 border border-pink-500/40"
+                      }`}>
+                        <span className="text-xl">🎓</span>
+                      </div>
+                      <h3 className={`text-2xl font-bold ${
+                        theme === "dark" 
+                          ? "bg-gradient-to-r from-neon-cyan to-neon-blue bg-clip-text text-transparent" 
+                          : "bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent"
+                      }`}>
+                        Education Journey
+                      </h3>
+                    </div>
+
+                    {/* Education Details */}
+                    <div className="space-y-4">
+                      {/* Degree 1 */}
+                      <div className={`p-4 rounded-lg border ${
+                        theme === "dark" 
+                          ? "bg-gray-800/40 border-gray-700/50" 
+                          : "bg-white/60 border-pink-200/50"
+                      } group/item hover:scale-[1.01] transition-all duration-200`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className={`font-semibold text-lg ${
+                              theme === "dark" ? "text-white" : "text-gray-900"
+                            }`}>
+                              Bachelor of Technology (B.Tech)
+                            </h4>
+                            <p className={`${
+                              theme === "dark" 
+                                ? "text-neon-cyan group-hover:item:text-neon-blue" 
+                                : "text-pink-600 group-hover:item:text-rose-600"
+                            } font-medium transition-colors`}>
+                              Computer Science & Engineering
+                            </p>
+                            <p className={`text-sm ${
+                              theme === "dark" ? "text-gray-400" : "text-gray-600"
+                            }`}>
+                              Lovely Professional University • 2022 - 2026 | Jalandhar, Punjab
+                            </p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            theme === "dark" 
+                              ? "bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30" 
+                              : "bg-pink-500/20 text-pink-600 border border-pink-500/30"
+                          }`}>
+                            CGPA: 8.1
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Degree 2 */}
+                      <div className={`p-4 rounded-lg border ${
+                        theme === "dark" 
+                          ? "bg-gray-800/40 border-gray-700/50" 
+                          : "bg-white/60 border-pink-200/50"
+                      } group/item hover:scale-[1.01] transition-all duration-200`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className={`font-semibold text-lg ${
+                              theme === "dark" ? "text-white" : "text-gray-900"
+                            }`}>
+                              Higher Secondary Education
+                            </h4>
+                            <p className={`${
+                              theme === "dark" 
+                                ? "text-neon-cyan group-hover:item:text-neon-blue" 
+                                : "text-pink-600 group-hover:item:text-rose-600"
+                            } font-medium transition-colors`}>
+                              Science
+                            </p>
+                            <p className={`text-sm ${
+                              theme === "dark" ? "text-gray-400" : "text-gray-600"
+                            }`}>
+                              Sunbeam English School • 2021 - 2022
+                            </p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            theme === "dark" 
+                              ? "bg-neon-blue/20 text-neon-blue border border-neon-blue/30" 
+                              : "bg-rose-500/20 text-rose-600 border border-rose-500/30"
+                          }`}>
+                            90%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Matriculation / Secondary */}
+                      <div className={`p-4 rounded-lg border ${
+                        theme === "dark" 
+                          ? "bg-gray-800/40 border-gray-700/50" 
+                          : "bg-white/60 border-pink-200/50"
+                      } group/item hover:scale-[1.01] transition-all duration-200`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className={`font-semibold text-lg ${
+                              theme === "dark" ? "text-white" : "text-gray-900"
+                            }`}>
+                              Matriculation
+                            </h4>
+                            <p className={`${
+                              theme === "dark" 
+                                ? "text-neon-cyan group-hover:item:text-neon-blue" 
+                                : "text-pink-600 group-hover:item:text-rose-600"
+                            } font-medium transition-colors`}>
+                              Secondary School Certificate
+                            </p>
+                            <p className={`text-sm ${
+                              theme === "dark" ? "text-gray-400" : "text-gray-600"
+                            }`}>
+                              St. Mary's School • 2019 - 2020
+                            </p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            theme === "dark" 
+                              ? "bg-neon-blue/20 text-neon-blue border border-neon-blue/30" 
+                              : "bg-rose-500/20 text-rose-600 border border-rose-500/30"
+                          }`}>
+                            89%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Key Achievements */}
+                      <div className={`p-4 rounded-lg border-2 border-dashed ${
+                        theme === "dark" 
+                          ? "border-neon-purple/30 bg-neon-purple/5" 
+                          : "border-pink-400/30 bg-pink-400/5"
+                      }`}>
+                        <h5 className={`font-semibold mb-2 ${
+                          theme === "dark" 
+                            ? "text-neon-purple" 
+                            : "text-pink-700"
+                        }`}>
+                          🏆 Key Achievements
+                        </h5>
+                        <ul className={`text-sm space-y-1 ${
+                          theme === "dark" ? "text-gray-300" : "text-gray-700"
+                        }`}>
+                          <li>• Solved 150+ DSA problems across LeetCode, CodeChef, and Codeforces</li>
+                          <li>• Built AI agent prototype featured in university hackathon</li>
+                          <li>• Finalist in AI/ML mini hackathon for chatbot assistant</li>
+                          <li>• Developed LangChain demo integrating OpenAI function calling + Pinecone</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* Experience Card - Appears when Experience button is clicked */}
+            {showExperience && (
+              <div className="mb-8 animate-in slide-in-from-top-4 duration-300">
+                <Card className={`${
+                  theme === "dark"
+                    ? "bg-gradient-to-br from-gray-800/80 to-gray-900/60 border border-neon-cyan/30 shadow-2xl shadow-neon-cyan/20"
+                    : "bg-gradient-to-br from-white/95 to-pink-50/90 border border-pink-300/60 shadow-2xl shadow-pink-500/20 backdrop-blur-lg"
+                } p-6 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300`}
+                style={theme === "light" ? {
+                  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 231, 243, 0.8) 50%, rgba(251, 207, 232, 0.6) 100%)",
+                  backdropFilter: "blur(15px)"
+                } : {}}>
+                  
+                  {/* Decorative elements */}
+                  <div className={`absolute top-0 left-0 w-full h-1 ${
+                    theme === "dark" 
+                      ? "bg-gradient-to-r from-neon-cyan via-neon-blue to-neon-purple" 
+                      : "bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600"
+                  }`}></div>
+                  
+                  {theme === "dark" && (
+                    <>
+                      <div className="absolute top-4 right-4 w-2 h-2 bg-neon-cyan rounded-full animate-ping"></div>
+                      <div className="absolute bottom-4 left-4 w-1 h-1 bg-neon-blue rounded-full animate-pulse"></div>
+                    </>
+                  )}
+                  
+                  {theme === "light" && (
+                    <>
+                      <div className="absolute top-4 right-4 w-2 h-2 bg-pink-500/60 rounded-full animate-ping"></div>
+                      <div className="absolute bottom-4 left-4 w-1 h-1 bg-rose-500/60 rounded-full animate-pulse"></div>
+                      <div className="absolute top-1/2 right-2 w-1 h-4 bg-gradient-to-t from-pink-400/20 to-transparent"></div>
+                    </>
+                  )}
+
+                  <div className="space-y-6 relative z-10">
+                    {/* Header */}
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        theme === "dark" 
+                          ? "bg-neon-cyan/20 border border-neon-cyan/40" 
+                          : "bg-pink-500/20 border border-pink-500/40"
+                      }`}>
+                        <span className="text-xl">💼</span>
+                      </div>
+                      <h3 className={`text-2xl font-bold ${
+                        theme === "dark" 
+                          ? "bg-gradient-to-r from-neon-cyan to-neon-blue bg-clip-text text-transparent" 
+                          : "bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent"
+                      }`}>
+                        Experience & Achievements
+                      </h3>
+                    </div>
+
+                    {/* Experience Timeline */}
+                    <div className="space-y-4">
+                      {/* Company 1 - Hackveda */}
+                      <div className="mb-4 pb-4 border-b border-gray-600/30">
+                        <h5 className={`font-semibold ${
+                          theme === "dark" ? "text-neon-cyan" : "text-pink-600"
+                        }`}>
+                          Hackveda — Full Stack Developer
+                        </h5>
+                        <p className={`text-sm mt-1 ${
+                          theme === "dark" ? "text-gray-300" : "text-gray-700"
+                        }`}>
+                          01/2025 – Present | Remote • Built scalable full-stack applications using React and Node.js supporting 1K+ users. Delivered production-ready REST APIs, improved backend performance, and reduced response times through query optimization.
+                        </p>
+                      </div>
+
+                      {/* Company 2 - Innovateloop Solutions */}
+                      <div className="mb-4 pb-4 border-b border-gray-600/30">
+                        <h5 className={`font-semibold ${
+                          theme === "dark" ? "text-neon-cyan" : "text-pink-600"
+                        }`}>
+                          Innovateloop Solutions — AI/ML Fullstack Developer Intern
+                        </h5>
+                        <p className={`text-sm mt-1 ${
+                          theme === "dark" ? "text-gray-300" : "text-gray-700"
+                        }`}>
+                          08/2025 – 12/2025 | Jalandhar • Worked on model testing, evaluation, and deployment workflows. Evaluated AI models on large datasets improving output accuracy and applied NLP techniques to enhance prediction quality.
+                        </p>
+                      </div>
+
+                      {/* Company 3 - Outlier.ai */}
+                      <div className="mb-4 pb-4 border-b border-gray-600/30">
+                        <h5 className={`font-semibold ${
+                          theme === "dark" ? "text-neon-cyan" : "text-pink-600"
+                        }`}>
+                          Outlier.ai — AI/ML Full Stack Developer Intern
+                        </h5>
+                        <p className={`text-sm mt-1 ${
+                          theme === "dark" ? "text-gray-300" : "text-gray-700"
+                        }`}>
+                          05/2025 – 07/2025 | Remote • Trained and evaluated LLMs for contextual understanding and accuracy. Reviewed 500+ AI outputs for factual errors, bias, and performance improvements.
+                        </p>
+                      </div>
+
+                      {/* Notable Projects Header */}
+                      <div className={`p-4 rounded-lg border ${
+                        theme === "dark" 
+                          ? "bg-gray-800/40 border-gray-700/50" 
+                          : "bg-white/60 border-pink-200/50"
+                      }`}>
+                        <h4 className={`font-semibold text-lg mb-4 ${
+                          theme === "dark" ? "text-white" : "text-gray-900"
+                        }`}>
+                          🛠️ Notable Projects
+                        </h4>
+                        
+                        {/* Project 1 - Nexus */}
+                        <div className="mb-4 pb-4 border-b border-gray-600/30">
+                          <h5 className={`font-semibold ${
+                            theme === "dark" ? "text-neon-cyan" : "text-pink-600"
+                          }`}>
+                            Nexus - AI-Powered Streaming Hub
+                          </h5>
+                          <p className={`text-sm mt-1 ${
+                            theme === "dark" ? "text-gray-300" : "text-gray-700"
+                          }`}>
+                            Full-stack streaming platform integrating Gemini for AI summaries, TMDB for content discovery, and optimized data fetching for smooth playback.
+                          </p>
+                        </div>
+
+                        {/* Project 2 - WhatsApp Group Analytics Tool */}
+                        <div className="mb-4 pb-4 border-b border-gray-600/30">
+                          <h5 className={`font-semibold ${
+                            theme === "dark" ? "text-neon-cyan" : "text-pink-600"
+                          }`}>
+                            WhatsApp Group Analytics Tool
+                          </h5>
+                          <p className={`text-sm mt-1 ${
+                            theme === "dark" ? "text-gray-300" : "text-gray-700"
+                          }`}>
+                            Analytics system to track engagement and sentiment for WhatsApp groups, with NLP-based sentiment analysis and an interactive dashboard.
+                          </p>
+                        </div>
+
+                        {/* Project 3 - Nexus Demo / Related Work */}
+                        <div>
+                          <h5 className={`font-semibold ${
+                            theme === "dark" ? "text-neon-cyan" : "text-pink-600"
+                          }`}>
+                            Nexus (Production Work)
+                          </h5>
+                          <p className={`text-sm mt-1 ${
+                            theme === "dark" ? "text-gray-300" : "text-gray-700"
+                          }`}>
+                            Designed and shipped production-ready AI features and backend improvements that supported user growth and improved response times.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Key Achievements & Skills */}
+                      <div className={`p-4 rounded-lg border-2 border-dashed ${
+                        theme === "dark" 
+                          ? "border-neon-purple/30 bg-neon-purple/5" 
+                          : "border-pink-400/30 bg-pink-400/5"
+                      }`}>
+                        <h5 className={`font-semibold mb-4 ${
+                          theme === "dark" 
+                            ? "text-neon-purple" 
+                            : "text-pink-700"
+                        }`}>
+                          🌟 Key Achievements & Skills
+                        </h5>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Coding & Problem Solving */}
+                          <div>
+                            <h6 className={`font-semibold mb-3 flex items-center ${
+                              theme === "dark" ? "text-gray-200" : "text-gray-800"
+                            }`}>
+                              🧠 Coding & Problem Solving
+                            </h6>
+                            <ul className={`text-sm space-y-2 ${
+                              theme === "dark" ? "text-gray-300" : "text-gray-700"
+                            }`}>
+                              <li>• Solved 150+ coding problems across LeetCode, CodeChef, and Codeforces</li>
+                              <li>• Strong grasp of DSA, OOP, and system design</li>
+                              <li>• Experience building and deploying LLM-powered features</li>
+                            </ul>
+                          </div>
+
+                          {/* Project Highlights */}
+                          <div>
+                            <h6 className={`font-semibold mb-3 flex items-center ${
+                              theme === "dark" ? "text-gray-200" : "text-gray-800"
+                            }`}>
+                              🚀 Project Highlights
+                            </h6>
+                            <ul className={`text-sm space-y-2 ${
+                              theme === "dark" ? "text-gray-300" : "text-gray-700"
+                            }`}>
+                              <li>• Built full-stack apps and LLM-powered systems using React, Node.js, MongoDB, and Python</li>
+                              <li>• Developed and productionized REST APIs and backend workflows</li>
+                              <li>• Implemented prompt engineering and LLM evaluation flows (LangChain, Pinecone, OpenAI)</li>
+                              <li>• Focused on performance, scalability, and user-centered design</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* Background Card - Appears when Background button is clicked */}
+            {showBackground && (
+              <div className="mb-8 animate-in slide-in-from-top-4 duration-300">
+                <Card className={`${
+                  theme === "dark" 
+                    ? "bg-gradient-to-br from-gray-800/80 to-gray-900/60 border border-neon-cyan/30 shadow-2xl shadow-neon-cyan/20" 
+                    : "bg-gradient-to-br from-white/95 to-pink-50/90 border border-pink-300/60 shadow-2xl shadow-pink-500/20 backdrop-blur-lg"
+                } p-6 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300`}
+                style={theme === "light" ? {
+                  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 231, 243, 0.8) 50%, rgba(251, 207, 232, 0.6) 100%)",
+                  backdropFilter: "blur(15px)"
+                } : {}}>
+                  
+                  {/* Decorative elements */}
+                  <div className={`absolute top-0 left-0 w-full h-1 ${
+                    theme === "dark" 
+                      ? "bg-gradient-to-r from-neon-cyan via-neon-blue to-neon-purple" 
+                      : "bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600"
+                  }`}></div>
+                  
+                  {theme === "dark" && (
+                    <>
+                      <div className="absolute top-4 right-4 w-2 h-2 bg-neon-cyan rounded-full animate-ping"></div>
+                      <div className="absolute bottom-4 left-4 w-1 h-1 bg-neon-blue rounded-full animate-pulse"></div>
+                    </>
+                  )}
+                  
+                  {theme === "light" && (
+                    <>
+                      <div className="absolute top-4 right-4 w-2 h-2 bg-pink-500/60 rounded-full animate-ping"></div>
+                      <div className="absolute bottom-4 left-4 w-1 h-1 bg-rose-500/60 rounded-full animate-pulse"></div>
+                      <div className="absolute top-1/2 right-2 w-1 h-4 bg-gradient-to-t from-pink-400/20 to-transparent"></div>
+                    </>
+                  )}
+
+                  <div className="space-y-6 relative z-10">
+                    {/* Header */}
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        theme === "dark" 
+                          ? "bg-neon-cyan/20 border border-neon-cyan/40" 
+                          : "bg-pink-500/20 border border-pink-500/40"
+                      }`}>
+                        <span className="text-xl">🌟</span>
+                      </div>
+                      <h3 className={`text-2xl font-bold ${
+                        theme === "dark" 
+                          ? "bg-gradient-to-r from-neon-cyan to-neon-blue bg-clip-text text-transparent" 
+                          : "bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent"
+                      }`}>
+                        My Background & Passion
+                      </h3>
+                    </div>
+
+                    {/* Background Sections */}
+                    <div className="space-y-4">
+                      {/* Origin Story */}
+                      <div className={`p-4 rounded-lg border ${
+                        theme === "dark" 
+                          ? "bg-gray-800/40 border-gray-700/50" 
+                          : "bg-white/60 border-pink-200/50"
+                      } group/item hover:scale-[1.01] transition-all duration-200`}>
+                        <h4 className={`font-semibold text-lg mb-3 ${
+                          theme === "dark" ? "text-white" : "text-gray-900"
+                        }`}>
+                          🚀 The Journey Begins
+                        </h4>
+                        <p className={`text-sm leading-relaxed ${
+                          theme === "dark" ? "text-gray-300" : "text-gray-700"
+                        }`}>
+                          My journey into tech started with a curiosity about how websites work. What began as simple HTML pages 
+                          evolved into a passionate pursuit of creating digital experiences that blend beautiful design with 
+                          powerful functionality. Every line of code is an opportunity to solve problems and build something meaningful.
+                        </p>
+                      </div>
+
+                      {/* Creative Side */}
+                      <div className={`p-4 rounded-lg border ${
+                        theme === "dark" 
+                          ? "bg-gray-800/40 border-gray-700/50" 
+                          : "bg-white/60 border-pink-200/50"
+                      } group/item hover:scale-[1.01] transition-all duration-200`}>
+                        <h4 className={`font-semibold text-lg mb-3 ${
+                          theme === "dark" ? "text-white" : "text-gray-900"
+                        }`}>
+                          🎨 Beyond Code
+                        </h4>
+                        <p className={`text-sm leading-relaxed ${
+                          theme === "dark" ? "text-gray-300" : "text-gray-700"
+                        }`}>
+                          I believe great developers are also great problem solvers and storytellers. Alongside my technical growth, 
+                          I've always been drawn to the world of art and design—from sketching detailed portraits to exploring creative 
+                          coding. My design thinking mindset allows me to approach development with user experience at the forefront.
+                          Outside of tech, I'm also a sports enthusiast, having been selected for the Under-14 Basketball Nationals, 
+                          which taught me leadership, focus, and teamwork—values I bring into every project and collaboration.
+                        </p>
+                      </div>
+
+                      {/* Philosophy & Values */}
+                      <div className={`p-4 rounded-lg border-2 border-dashed ${
+                        theme === "dark" 
+                          ? "border-neon-purple/30 bg-neon-purple/5" 
+                          : "border-pink-400/30 bg-pink-400/5"
+                      }`}>
+                        <h5 className={`font-semibold mb-3 ${
+                          theme === "dark" 
+                            ? "text-neon-purple" 
+                            : "text-pink-700"
+                        }`}>
+                          💡 Core Values & Philosophy
+                        </h5>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <h6 className={`font-medium mb-2 ${
+                              theme === "dark" ? "text-gray-200" : "text-gray-800"
+                            }`}>Development Philosophy</h6>
+                            <ul className={`text-sm space-y-1 ${
+                              theme === "dark" ? "text-gray-300" : "text-gray-700"
+                            }`}>
+                              <li>• User-first design thinking</li>
+                              <li>• Clean, maintainable code</li>
+                              <li>• Continuous learning mindset</li>
+                              <li>• Collaborative team spirit</li>
+                            </ul>
+                          </div>
+                          <div>
+                            <h6 className={`font-medium mb-2 ${
+                              theme === "dark" ? "text-gray-200" : "text-gray-800"
+                            }`}>Personal Interests</h6>
+                            <div className="flex flex-wrap gap-2">
+                              {['UI/UX Design', 'Tech Mentoring', 'Creative Coding', 'Sketch Art & Drawing', 'Basketball & Team Sports'].map((interest) => (
+                                <span key={interest} className={`px-2 py-1 rounded-full text-xs ${
+                                  theme === "dark" 
+                                    ? "bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30" 
+                                    : "bg-pink-500/20 text-pink-600 border border-pink-500/30"
+                                }`}>
+                                  {interest}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            <p className={theme === "dark" ? "text-gray-300 leading-relaxed" : "text-gray-700 leading-relaxed"}>
+              Passionate Full-Stack Developer & Open-Source Contributor with hands-on experience in frontend, backend, and automation. Skilled in technologies like React, Node.js, PHP, and MongoDB, with a growing expertise in Selenium testing and DevOps workflows. Strong foundation in Data Structures and Algorithms (DSA), ensuring optimized and scalable solutions. Loves blending creativity and logic — from crafting seamless user interfaces to designing robust server-side systems. Driven by innovation, open-source collaboration, and a commitment to clean, efficient, and high-performance code.
+            </p>
+          </div>
+
+          {/* Tech Stack */}
+          <div>
+            <h2 className="text-3xl md:text-4xl font-michroma font-bold mb-8">
+              <span className={`${theme === "dark" 
+                ? "bg-gradient-to-r from-neon-blue to-neon-cyan" 
+                : "bg-gradient-to-r from-rose-600 to-pink-600"} bg-clip-text text-transparent`}>
+                Tech Stack
+              </span>
+            </h2>
+
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+              {[
+                { name: "DSA", icon: "🧠" },
+                { name: "CSS3", icon: "🎨" },
+                { name: "JavaScript", icon: "⚡" },
+                { name: "NodeJS", icon: "🟢" },
+                { name: "React", icon: "⚛️" },
+                { name: "TypeScript", icon: "📘" },
+                { name: "Tailwind", icon: "🎨" },
+                { name: "Django", icon: "🐍" },
+                { name: "Selenium", icon: "🤖" },
+                { name: "System Design", icon: "🏗️" },
+                { name: "Docker", icon: "🐳" },
+                { name: "DevOps", icon: "⚙️" },
+              ].map((tech, index) => (
+                <div
+                  key={index}
+                  className={`flex flex-col items-center space-y-2 p-3 rounded-lg ${
+                    theme === "dark" 
+                      ? "bg-gray-800/30 border border-gray-700 hover:border-neon-blue/50" 
+                      : "bg-gradient-to-br from-white/90 to-pink-50/80 border border-pink-200/60 hover:border-pink-400/60 shadow-lg shadow-pink-500/10 hover:shadow-pink-500/20 backdrop-blur-sm"
+                  } transition-all duration-150 group hover:scale-105 hover:-translate-y-1`}
+                  style={theme === "light" ? {
+                    backdropFilter: "blur(10px)",
+                    background: "linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(252, 231, 243, 0.6) 100%)"
+                  } : {}}
+                >
+                  <div className="text-2xl group-hover:scale-110 transition-transform duration-150">
+                    {tech.icon}
+                  </div>
+                  <span className={`text-xs ${
+                    theme === "dark" 
+                      ? "text-gray-300 group-hover:text-neon-blue" 
+                      : "text-gray-700 group-hover:text-pink-600"
+                  } transition-colors font-medium text-center`}>
+                    {tech.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Projects Section */}
+      <section id="projects" className="container mx-auto px-4 py-32 relative scroll-reveal">
+        
+        {/* Section Number Indicator */}
+        <div className={`fixed right-8 top-1/2 transform -translate-y-1/2 z-30 hidden xl:block ${
+          theme === "dark" ? "text-neon-blue/60" : "text-rose-500/60"
+        } font-mono text-sm tracking-wider`}>
+          <div className="writing-mode-vertical text-orientation-mixed rotate-180">
+            PROJ_002
+          </div>
+        </div>
+
+        <h2 className="text-4xl md:text-5xl font-michroma font-bold text-center mb-16">
+          <span className={`${theme === "dark" 
+            ? "bg-gradient-to-r from-neon-cyan to-neon-blue" 
+            : "bg-gradient-to-r from-pink-600 to-rose-600"} bg-clip-text text-transparent`}>
+            Featured Projects
+          </span>
+        </h2>
+
+        <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+          {/* Project 1 - Nexus */}
+          <Card
+            className={`scroll-reveal slide-left ${
+              theme === "dark" 
+                ? "bg-gradient-to-br from-gray-900/90 to-gray-800/80 border border-neon-cyan/30 hover:border-neon-pink/50 shadow-2xl shadow-neon-cyan/20 hover:shadow-neon-pink/30 backdrop-blur-xl" 
+                : "bg-gradient-to-br from-white/95 to-pink-50/90 border border-pink-200/60 hover:border-pink-400/70 shadow-xl shadow-pink-500/15 hover:shadow-pink-500/30 backdrop-blur-lg"
+            } transition-all duration-300 p-8 group hover:scale-[1.02] hover:-translate-y-3 relative overflow-hidden`}
+            style={theme === "light" ? {
+              background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 231, 243, 0.8) 50%, rgba(251, 207, 232, 0.6) 100%)",
+              backdropFilter: "blur(15px)"
+            } : {
+              background: "linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.9) 50%, rgba(0, 0, 0, 0.8) 100%)",
+              backdropFilter: "blur(20px)"
+            }}
+          >
+            {/* Animated Background Elements */}
+            <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+              theme === "dark" 
+                ? "bg-gradient-to-br from-neon-cyan/5 via-transparent to-neon-pink/5"
+                : "bg-gradient-to-br from-pink-500/3 via-transparent to-rose-500/3"
+            }`}></div>
+            
+            {/* Top gradient bar */}
+            <div className={`absolute top-0 left-0 w-full h-1 ${
+              theme === "dark" 
+                ? "bg-gradient-to-r from-neon-cyan via-neon-blue to-neon-purple" 
+                : "bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600"
+            }`}></div>
+            
+            {/* Floating decorative elements */}
+            {theme === "dark" && (
+              <>
+                <div className="absolute top-6 right-6 w-3 h-3 bg-neon-cyan/60 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-6 left-6 w-2 h-2 bg-neon-pink/60 rounded-full animate-ping"></div>
+              </>
+            )}
+            
+            {theme === "light" && (
+              <>
+                <div className="absolute top-6 right-6 w-3 h-3 bg-pink-500/60 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-6 left-6 w-2 h-2 bg-rose-500/60 rounded-full animate-ping"></div>
+                <div className="absolute top-1/2 right-4 w-1 h-8 bg-gradient-to-t from-pink-400/20 to-transparent"></div>
+              </>
+            )}
+
+            <div className="relative z-10 space-y-6">
+              {/* Project Number */}
+              <div className={`absolute -top-4 -left-4 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                theme === "dark" 
+                  ? "bg-neon-cyan text-black" 
+                  : "bg-pink-500 text-white"
+              }`}>
+                01
+              </div>
+              
+              {/* Project Header */}
+              <div className="flex items-center space-x-4">
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                  theme === "dark" 
+                    ? "bg-neon-cyan/20 border-2 border-neon-cyan/40 group-hover:bg-neon-cyan/30" 
+                    : "bg-pink-500/20 border-2 border-pink-500/40 group-hover:bg-pink-500/30"
+                } transition-all duration-300 group-hover:scale-110 group-hover:rotate-3`}>
+                  🫱‍🫲
+                </div>
+                <div>
+                  <h3 className={`text-2xl font-bold ${
+                    theme === "dark" 
+                      ? "text-white group-hover:text-neon-cyan" 
+                      : "text-gray-800 group-hover:text-pink-600"
+                  } transition-colors duration-300`}>
+                    Nexus - AI-Powered Streaming Hub
+                  </h3>
+                  <p className={`text-sm font-medium ${
+                    theme === "dark" ? "text-neon-cyan/80" : "text-pink-600/80"
+                  }`}>
+                    Full-stack streaming platform with AI summaries & recommendations
+                  </p>
+                </div>
+              </div>
+
+              {/* Project Description */}
+              <p className={`${
+                theme === "dark" ? "text-gray-300" : "text-gray-700"
+              } text-sm leading-relaxed group-hover:text-opacity-90 transition-all duration-300`}>
+                Built a full-stack streaming platform using React, Node.js, and MongoDB. Integrated Gemini API for AI-generated summaries and recommendations, and TMDB APIs for content discovery. Focused on performant data fetching and user-friendly playback experience.
+              </p>
+
+              {/* Tech Stack */}
+              <div className="space-y-3">
+                <h4 className={`text-sm font-semibold ${
+                  theme === "dark" ? "text-gray-200" : "text-gray-800"
+                }`}>
+                  Tech Stack:
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {['React.js', 'Node.js', 'MongoDB', 'Gemini API', 'TMDB API'].map((tech, techIndex) => (
+                    <Badge
+                      key={techIndex}
+                      className={`${
+                        theme === "dark" 
+                          ? "bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30 hover:bg-neon-cyan/20 hover:scale-105" 
+                          : "bg-pink-500/10 text-pink-600 border border-pink-500/30 hover:bg-pink-500/20 hover:scale-105"
+                      } transition-all duration-200 cursor-default`}
+                    >
+                      {tech}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <a href="https://iamnexus.vercel.app/browse" target="_blank" rel="noopener noreferrer">
+                  <Button
+                    size="sm"
+                    className={`${
+                      theme === "dark" 
+                        ? "bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30 hover:bg-neon-cyan hover:text-black" 
+                        : "bg-pink-500/20 text-pink-600 border border-pink-500/30 hover:bg-pink-500 hover:text-white"
+                    } transition-all duration-200 hover:scale-105`}
+                  >
+                    View Demo
+                  </Button>
+                </a>
+                <a href="https://github.com/aditya29625" target="_blank" rel="noopener noreferrer">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`${
+                      theme === "dark" 
+                        ? "border-neon-pink/30 text-neon-pink hover:bg-neon-pink hover:text-black" 
+                        : "border-rose-500/30 text-rose-600 hover:bg-rose-500 hover:text-white"
+                    } transition-all duration-200 hover:scale-105`}
+                  >
+                    GitHub
+                  </Button>
+                </a>
+              </div>
+            </div>
+          </Card>
+
+          {/* Project 2 - WhatsApp Group Analytics Tool */}
+          <Card
+            className={`scroll-reveal slide-right ${
+              theme === "dark" 
+                ? "bg-gradient-to-br from-gray-900/90 to-gray-800/80 border border-neon-purple/30 hover:border-neon-cyan/50 shadow-2xl shadow-neon-purple/20 hover:shadow-neon-cyan/30 backdrop-blur-xl" 
+                : "bg-gradient-to-br from-white/95 to-rose-50/90 border border-rose-200/60 hover:border-rose-400/70 shadow-xl shadow-rose-500/15 hover:shadow-rose-500/30 backdrop-blur-lg"
+            } transition-all duration-300 p-8 group hover:scale-[1.02] hover:-translate-y-3 relative overflow-hidden`}
+            style={theme === "light" ? {
+              background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 241, 242, 0.8) 50%, rgba(254, 226, 226, 0.6) 100%)",
+              backdropFilter: "blur(15px)"
+            } : {
+              background: "linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.9) 50%, rgba(0, 0, 0, 0.8) 100%)",
+              backdropFilter: "blur(20px)"
+            }}
+          >
+            {/* Animated Background Elements */}
+            <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+              theme === "dark" 
+                ? "bg-gradient-to-br from-neon-purple/5 via-transparent to-neon-cyan/5"
+                : "bg-gradient-to-br from-rose-500/3 via-transparent to-pink-500/3"
+            }`}></div>
+            
+            {/* Top gradient bar */}
+            <div className={`absolute top-0 left-0 w-full h-1 ${
+              theme === "dark" 
+                ? "bg-gradient-to-r from-neon-purple via-neon-pink to-neon-cyan" 
+                : "bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600"
+            }`}></div>
+            
+            {/* Floating decorative elements */}
+            {theme === "dark" && (
+              <>
+                <div className="absolute top-6 right-6 w-3 h-3 bg-neon-purple/60 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-6 left-6 w-2 h-2 bg-neon-cyan/60 rounded-full animate-ping"></div>
+              </>
+            )}
+            
+            {theme === "light" && (
+              <>
+                <div className="absolute top-6 right-6 w-3 h-3 bg-rose-500/60 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-6 left-6 w-2 h-2 bg-pink-500/60 rounded-full animate-ping"></div>
+                <div className="absolute top-1/2 right-4 w-1 h-8 bg-gradient-to-t from-rose-400/20 to-transparent"></div>
+              </>
+            )}
+
+            <div className="relative z-10 space-y-6">
+              {/* Project Header */}
+              <div className="flex items-center space-x-4">
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                  theme === "dark" 
+                    ? "bg-neon-purple/20 border-2 border-neon-purple/40 group-hover:bg-neon-purple/30" 
+                    : "bg-rose-500/20 border-2 border-rose-500/40 group-hover:bg-rose-500/30"
+                } transition-all duration-300 group-hover:scale-110 group-hover:rotate-[-3deg]`}>
+                  🎨
+                </div>
+                <div>
+                  <h3 className={`text-2xl font-bold ${
+                    theme === "dark" 
+                      ? "text-white group-hover:text-neon-purple" 
+                      : "text-gray-800 group-hover:text-rose-600"
+                  } transition-colors duration-300`}> 
+                    SBLRent | Full-Stack Property Rental
+                  </h3>
+                  <p className={`text-sm font-medium ${
+                    theme === "dark" ? "text-neon-purple/80" : "text-rose-600/80"
+                  }`}>
+                    Cloud-based property rental platform with user & vendor registration, property listings, location search, wishlist, bookings, monthly payments via Razorpay, admin dashboard and Azure Blob storage integration.
+                  </p>
+                </div>
+              </div>
+
+              {/* Project Description */}
+                <p className={`${
+                theme === "dark" ? "text-gray-300" : "text-gray-700"
+              } text-sm leading-relaxed group-hover:text-opacity-90 transition-all duration-300`}>
+                Developed an analytics system to track engagement and activity trends for WhatsApp groups. Implemented sentiment analysis using NLP techniques and built a dashboard with visual insights and performance metrics.
+              </p>
+
+              {/* Tech Stack */}
+              <div className="space-y-3">
+                <h4 className={`text-sm font-semibold ${
+                  theme === "dark" ? "text-gray-200" : "text-gray-800"
+                }`}>
+                  Tech Stack:
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {['Django', 'PostgreSQL', 'Azure Blob', 'Render', 'Razorpay', 'React.js'].map((tech, techIndex) => (
+                    <Badge
+                      key={techIndex}
+                      className={`$
+                        theme === "dark" 
+                          ? "bg-neon-purple/10 text-neon-purple border border-neon-purple/30 hover:bg-neon-purple/20 hover:scale-105" 
+                          : "bg-rose-500/10 text-rose-600 border border-rose-500/30 hover:bg-rose-500/20 hover:scale-105"
+                      } transition-all duration-200 cursor-default`}
+                    >
+                      {tech}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <a href="https://sblrent-c9ehdmewcqcfhkh7.eastasia-01.azurewebsites.net/" target="_blank" rel="noopener noreferrer">
+                  <Button
+                    size="sm"
+                    className={`${
+                      theme === "dark" 
+                        ? "bg-neon-purple/20 text-neon-purple border border-neon-purple/30 hover:bg-neon-purple hover:text-black" 
+                        : "bg-rose-500/20 text-rose-600 border border-rose-500/30 hover:bg-rose-500 hover:text-white"
+                    } transition-all duration-200 hover:scale-105`}
+                  >
+                    Live Demo
+                  </Button>
+                </a>
+                <a href="https://github.com/aditya29625" target="_blank" rel="noopener noreferrer">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={`${
+                      theme === "dark" 
+                        ? "border-neon-purple text-neon-purple hover:bg-neon-purple/10" 
+                        : "border-rose-500 text-rose-600 hover:bg-rose-100"
+                    } transition-all duration-200 hover:scale-105`}
+                  >
+                    GitHub
+                  </Button>
+                </a>
+              </div>
+
+              {/* Action Buttons (keep only the correct set with external links) */}
+            </div>
+          </Card>
+
+          {/* Project 3 - RentEase */}
+          <Card
+            className={`scroll-reveal slide-left ${
+              theme === "dark" 
+                ? "bg-gradient-to-br from-gray-900/90 to-gray-800/80 border border-neon-blue/30 hover:border-neon-purple/50 shadow-2xl shadow-neon-blue/20 hover:shadow-neon-purple/30 backdrop-blur-xl" 
+                : "bg-gradient-to-br from-white/95 to-blue-50/90 border border-blue-200/60 hover:border-blue-400/70 shadow-xl shadow-blue-500/15 hover:shadow-blue-500/30 backdrop-blur-lg"
+            } transition-all duration-300 p-8 group hover:scale-[1.02] hover:-translate-y-3 relative overflow-hidden`}
+            style={theme === "light" ? {
+              background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(239, 246, 255, 0.8) 50%, rgba(219, 234, 254, 0.6) 100%)",
+              backdropFilter: "blur(15px)"
+            } : {
+              background: "linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.9) 50%, rgba(0, 0, 0, 0.8) 100%)",
+              backdropFilter: "blur(20px)"
+            }}
+          >
+            {/* Animated Background Elements */}
+            <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+              theme === "dark" 
+                ? "bg-gradient-to-br from-neon-blue/5 via-transparent to-neon-purple/5"
+                : "bg-gradient-to-br from-blue-500/3 via-transparent to-purple-500/3"
+            }`}></div>
+            
+            {/* Top gradient bar */}
+            <div className={`absolute top-0 left-0 w-full h-1 ${
+              theme === "dark" 
+                ? "bg-gradient-to-r from-neon-blue via-neon-cyan to-neon-purple" 
+                : "bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600"
+            }`}></div>
+            
+            {/* Floating decorative elements */}
+            {theme === "dark" && (
+              <>
+                <div className="absolute top-6 right-6 w-3 h-3 bg-neon-blue/60 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-6 left-6 w-2 h-2 bg-neon-purple/60 rounded-full animate-ping"></div>
+              </>
+            )}
+            
+            {theme === "light" && (
+              <>
+                <div className="absolute top-6 right-6 w-3 h-3 bg-blue-500/60 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-6 left-6 w-2 h-2 bg-purple-500/60 rounded-full animate-ping"></div>
+                <div className="absolute top-1/2 right-4 w-1 h-8 bg-gradient-to-t from-blue-400/20 to-transparent"></div>
+              </>
+            )}
+
+            <div className="relative z-10 space-y-6">
+              {/* Project Header */}
+              <div className="flex items-center space-x-4">
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                  theme === "dark" 
+                    ? "bg-neon-blue/20 border-2 border-neon-blue/40 group-hover:bg-neon-blue/30" 
+                    : "bg-blue-500/20 border-2 border-blue-500/40 group-hover:bg-blue-500/30"
+                } transition-all duration-300 group-hover:scale-110 group-hover:rotate-3`}>
+                  🔄
+                </div>
+                <div>
+                  <h3 className={`text-2xl font-bold ${
+                    theme === "dark" 
+                      ? "text-white group-hover:text-neon-blue" 
+                      : "text-gray-800 group-hover:text-blue-600"
+                  } transition-colors duration-300`}>
+                    Battery Waste Management System
+                  </h3>
+                  <p className={`text-sm font-medium ${
+                    theme === "dark" ? "text-neon-blue/80" : "text-blue-600/80"
+                  }`}>
+                    System to track and optimize battery disposal, recycling, and lifecycle management with analytics and an interactive dashboard.
+                  </p>
+                </div>
+              </div>
+
+              {/* Project Description */}
+                <p className={`${
+                theme === "dark" ? "text-gray-300" : "text-gray-700"
+              } text-sm leading-relaxed group-hover:text-opacity-90 transition-all duration-300`}>
+                Developed a system to track and optimize battery disposal, recycling, and lifecycle management. Implemented analytics for usage, lifespan prediction, and disposal trends. Built an interactive dashboard with custom visualizations and integrated automated data processing for waste collection centers.
+              </p>
+
+              {/* Tech Stack */}
+              <div className="space-y-3">
+                <h4 className={`text-sm font-semibold ${
+                  theme === "dark" ? "text-gray-200" : "text-gray-800"
+                }`}>
+                  Tech Stack:
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {['Python', 'Pandas', 'NLTK', 'Flask', 'React.js', 'D3.js', 'MongoDB'].map((tech, techIndex) => (
+                    <Badge
+                      key={techIndex}
+                      className={`${
+                        theme === "dark" 
+                          ? "bg-neon-blue/10 text-neon-blue border border-neon-blue/30 hover:bg-neon-blue/20 hover:scale-105" 
+                          : "bg-blue-500/10 text-blue-600 border border-blue-500/30 hover:bg-blue-500/20 hover:scale-105"
+                      } transition-all duration-200 cursor-default`}
+                    >
+                      {tech}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <a href="https://aditya29625.github.io/battery_waste/" target="_blank" rel="noopener noreferrer">
+                  <Button
+                    size="sm"
+                    className={`${
+                      theme === "dark" 
+                        ? "bg-neon-blue/20 text-neon-blue border border-neon-blue/30 hover:bg-neon-blue hover:text-black" 
+                        : "bg-blue-500/20 text-blue-600 border border-blue-500/30 hover:bg-blue-500 hover:text-white"
+                    } transition-all duration-200 hover:scale-105`}
+                  >
+                    Live Demo
+                  </Button>
+                </a>
+                <a href="https://github.com/aditya29625" target="_blank" rel="noopener noreferrer">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`${
+                      theme === "dark" 
+                        ? "border-neon-purple/30 text-neon-purple hover:bg-neon-purple hover:text-black" 
+                        : "border-purple-500/30 text-purple-600 hover:bg-purple-500 hover:text-white"
+                    } transition-all duration-200 hover:scale-105`}
+                  >
+                    GitHub
+                  </Button>
+                </a>
+              </div>
+            </div>
+          </Card>
+
+          {/* Project 4 - The Nexus */}
+          <Card
+            className={`scroll-reveal slide-right ${
+              theme === "dark" 
+                ? "bg-gradient-to-br from-gray-900/90 to-gray-800/80 border border-neon-pink/30 hover:border-neon-blue/50 shadow-2xl shadow-neon-pink/20 hover:shadow-neon-blue/30 backdrop-blur-xl" 
+                : "bg-gradient-to-br from-white/95 to-purple-50/90 border border-purple-200/60 hover:border-purple-400/70 shadow-xl shadow-purple-500/15 hover:shadow-purple-500/30 backdrop-blur-lg"
+            } transition-all duration-300 p-8 group hover:scale-[1.02] hover:-translate-y-3 relative overflow-hidden`}
+            style={theme === "light" ? {
+              background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 245, 255, 0.8) 50%, rgba(243, 232, 255, 0.6) 100%)",
+              backdropFilter: "blur(15px)"
+            } : {
+              background: "linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.9) 50%, rgba(0, 0, 0, 0.8) 100%)",
+              backdropFilter: "blur(20px)"
+            }}
+          >
+            {/* Animated Background Elements */}
+            <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+              theme === "dark" 
+                ? "bg-gradient-to-br from-neon-pink/5 via-transparent to-neon-blue/5"
+                : "bg-gradient-to-br from-purple-500/3 via-transparent to-indigo-500/3"
+            }`}></div>
+            
+            {/* Top gradient bar */}
+            <div className={`absolute top-0 left-0 w-full h-1 ${
+              theme === "dark" 
+                ? "bg-gradient-to-r from-neon-pink via-neon-purple to-neon-blue" 
+                : "bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-600"
+            }`}></div>
+            
+            {/* Floating decorative elements */}
+            {theme === "dark" && (
+              <>
+                <div className="absolute top-6 right-6 w-3 h-3 bg-neon-pink/60 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-6 left-6 w-2 h-2 bg-neon-blue/60 rounded-full animate-ping"></div>
+              </>
+            )}
+            
+            {theme === "light" && (
+              <>
+                <div className="absolute top-6 right-6 w-3 h-3 bg-purple-500/60 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-6 left-6 w-2 h-2 bg-indigo-500/60 rounded-full animate-ping"></div>
+                <div className="absolute top-1/2 right-4 w-1 h-8 bg-gradient-to-t from-purple-400/20 to-transparent"></div>
+              </>
+            )}
+
+            <div className="relative z-10 space-y-6">
+              {/* Project Header */}
+              <div className="flex items-center space-x-4">
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                  theme === "dark" 
+                    ? "bg-neon-pink/20 border-2 border-neon-pink/40 group-hover:bg-neon-pink/30" 
+                    : "bg-purple-500/20 border-2 border-purple-500/40 group-hover:bg-purple-500/30"
+                } transition-all duration-300 group-hover:scale-110 group-hover:rotate-[-3deg]`}>
+                  🎬
+                </div>
+                <div>
+                  <h3 className={`text-2xl font-bold ${
+                    theme === "dark" 
+                      ? "text-white group-hover:text-neon-pink" 
+                      : "text-gray-800 group-hover:text-purple-600"
+                  } transition-colors duration-300`}>
+                    Vidcraft – Video Automation App (Nov 2024 – Jan 2025)
+                  </h3>
+                  <p className={`text-sm font-medium ${
+                    theme === "dark" ? "text-neon-pink/80" : "text-purple-600/80"
+                  }`}>
+                    Video Automation App
+                  </p>
+                </div>
+              </div>
+
+              {/* Project Description */}
+              <div className={`${
+                theme === "dark" ? "text-gray-300" : "text-gray-700"
+              } text-sm leading-relaxed group-hover:text-opacity-90 transition-all duration-300`}>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li>Developed a fully automated platform that generates video scripts, thumbnails, and content assets.</li>
+                  <li>Implemented AI-driven automation pipelines for content creation workflows.</li>
+                  <li>Designed a scalable system architecture with a modular backend and optimized API handling.</li>
+                  <li>Integrated Python-based automation for script generation and asset optimization.</li>
+                  <li>Built a responsive UI for creators to generate content quickly.</li>
+                </ul>
+              </div>
+
+              {/* Tech Stack */}
+              <div className="space-y-3">
+                <h4 className={`text-sm font-semibold ${
+                  theme === "dark" ? "text-gray-200" : "text-gray-800"
+                }`}>
+                  Tech Stack:
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {['React.js','Node.js','MongoDB','Python'].map((tech, techIndex) => (
+                    <Badge
+                      key={techIndex}
+                      className={`${
+                        theme === "dark" 
+                          ? "bg-neon-pink/10 text-neon-pink border border-neon-pink/30 hover:bg-neon-pink/20 hover:scale-105" 
+                          : "bg-purple-500/10 text-purple-600 border border-purple-500/30 hover:bg-purple-500/20 hover:scale-105"
+                      } transition-all duration-200 cursor-default`}
+                    >
+                      {tech}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <a href="https://vidcraftai.vercel.app/" target="_blank" rel="noopener noreferrer">
+                  <Button
+                    size="sm"
+                    className={`${
+                      theme === "dark" 
+                        ? "bg-neon-pink/20 text-neon-pink border border-neon-pink/30 hover:bg-neon-pink hover:text-black" 
+                        : "bg-purple-500/20 text-purple-600 border border-purple-500/30 hover:bg-purple-500 hover:text-white"
+                    } transition-all duration-200 hover:scale-105`}
+                  >
+                    Live Demo
+                  </Button>
+                </a>
+                <a href="https://github.com/aditya29625" target="_blank" rel="noopener noreferrer">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`${
+                      theme === "dark" 
+                        ? "border-neon-blue/30 text-neon-blue hover:bg-neon-blue hover:text-black" 
+                        : "border-indigo-500/30 text-indigo-600 hover:bg-indigo-500 hover:text-white"
+                    } transition-all duration-200 hover:scale-105`}
+                  >
+                    GitHub
+                  </Button>
+                </a>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* View All Projects Button */}
+        <div className="text-center mt-16">
+          <a
+            href="https://github.com/aditya29625?tab=repositories"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button
+              size="lg"
+              className={`${
+                theme === "dark" 
+                  ? "bg-gradient-to-r from-neon-cyan to-neon-purple hover:from-neon-purple hover:to-neon-cyan text-white" 
+                  : "bg-gradient-to-r from-pink-500 to-rose-500 hover:from-rose-500 hover:to-pink-500 text-white shadow-lg shadow-pink-500/30"
+              } font-semibold px-8 py-3 transition-all duration-300 hover:scale-105 hover:-translate-y-1`}
+            >
+              View All Projects →
+            </Button>
+          </a>
+        </div>
+
+      </section>
+
+      {/* Testimonials Section */}
+      <section id="testimonials" className="container mx-auto px-4 py-32 relative scroll-reveal">
+        <h2 className="text-4xl md:text-5xl font-michroma font-bold text-center mb-16">
+          <span className={`${theme === "dark" 
+            ? "bg-gradient-to-r from-neon-pink to-neon-purple" 
+            : "bg-gradient-to-r from-rose-600 to-pink-600"} bg-clip-text text-transparent`}>
+            Testimonials
+          </span>
+        </h2>
+
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          {/* Testimonial 1 */}
+          <Card className={`${
+            theme === "dark" 
+              ? "bg-gray-800/50 border-gray-700" 
+              : "bg-gradient-to-br from-white/95 to-pink-50/85 border border-pink-200/70 shadow-2xl shadow-pink-500/15 backdrop-blur-xl"
+          } p-8 relative overflow-hidden group hover:shadow-pink-500/25 transition-all duration-150`}
+          style={theme === "light" ? {
+            background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 231, 243, 0.7) 100%)",
+            backdropFilter: "blur(20px)"
+          } : {}}>
+            {/* Light mode card accent */}
+            {theme === "light" && (
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-400/60 to-rose-400/60"></div>
+            )}
+            <div className="flex items-start space-x-4">
+              <Avatar className={`w-12 h-12 border-2 ${
+                theme === "dark" ? "border-neon-pink" : "border-pink-500"
+              }`}>
+                <AvatarFallback className={`${
+                  theme === "dark" ? "bg-neon-pink/20 text-neon-pink" : "bg-pink-500/20 text-pink-600"
+                }`}>
+                  RS
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <p className={`${
+                  theme === "dark" ? "text-gray-300" : "text-gray-700"
+                } mb-4 italic`}>
+                  "Aditya is an exceptional developer with a keen eye for clean
+                  code and efficient solutions. His problem-solving abilities and
+                  attention to detail make him a valuable asset to any team."
+                </p>
+                <div className="text-sm">
+                  <p className={theme === "dark" ? "text-white font-semibold" : "text-gray-900 font-semibold"}>Rishav Raj Singh</p>
+                  <p className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>SDE At Toddle</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Testimonial 2 */}
+          <Card className={`${
+            theme === "dark" 
+              ? "bg-gray-800/50 border-gray-700" 
+              : "bg-gradient-to-br from-white/95 to-pink-50/85 border border-pink-200/70 shadow-2xl shadow-pink-500/15 backdrop-blur-xl"
+          } p-8 relative overflow-hidden group hover:shadow-pink-500/25 transition-all duration-150`}
+          style={theme === "light" ? {
+            background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 231, 243, 0.7) 100%)",
+            backdropFilter: "blur(20px)"
+          } : {}}>
+            {/* Light mode card accent */}
+            {theme === "light" && (
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-400/60 to-pink-400/60"></div>
+            )}
+            <div className="flex items-start space-x-4">
+              <Avatar className={`w-12 h-12 border-2 ${
+                theme === "dark" ? "border-neon-pink" : "border-pink-500"
+              }`}>
+                <AvatarFallback className={`${
+                  theme === "dark" ? "bg-neon-pink/20 text-neon-pink" : "bg-pink-500/20 text-pink-600"
+                }`}>
+                  NK
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <p className={`${
+                  theme === "dark" ? "text-gray-300" : "text-gray-700"
+                } mb-4 italic`}>
+                  "Working with Aditya has been a great experience. His technical
+                  expertise, innovative thinking, and collaborative approach
+                  consistently deliver outstanding results. He's truly dedicated
+                  to writing quality code."
+                </p>
+                <div className="text-sm">
+                  <p className={theme === "dark" ? "text-white font-semibold" : "text-gray-900 font-semibold"}>Niraj Kumar</p>
+                  <p className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>SDE at Accenture</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      {/* Send Message Section - Updated */}
+      <section id="contact" className="container mx-auto px-4 py-32 relative scroll-reveal">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-4xl md:text-5xl font-michroma font-bold text-center mb-8">
+            <span className={`${theme === "dark" 
+              ? "bg-gradient-to-r from-neon-cyan to-neon-blue" 
+              : "bg-gradient-to-r from-rose-600 to-pink-600"} bg-clip-text text-transparent`}>
+              Let's Write The Next Chapter
+            </span>
+          </h2>
+
+          <div className="text-center mb-12">
+            <p className={`text-lg md:text-xl leading-relaxed ${
+              theme === "dark" ? "text-gray-300" : "text-gray-700"
+            }`}>
+              Every great story needs collaboration. Share your vision, and let's create something extraordinary together.
+            </p>
+          </div>
+
+          <Card className={`${
+            theme === "dark" 
+              ? "bg-gradient-to-br from-gray-900/95 to-gray-800/90 border border-gray-600/50 backdrop-blur-2xl shadow-2xl shadow-black/30" 
+              : "bg-gradient-to-br from-white/95 to-pink-50/80 border border-pink-200/70 shadow-2xl shadow-pink-500/20 backdrop-blur-xl"
+          } p-8 relative overflow-hidden`}
+          style={theme === "light" ? {
+            background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 231, 243, 0.8) 50%, rgba(251, 207, 232, 0.6) 100%)",
+            backdropFilter: "blur(25px)"
+          } : {
+            background: "linear-gradient(135deg, rgba(17, 24, 39, 0.98) 0%, rgba(31, 41, 55, 0.95) 50%, rgba(0, 0, 0, 0.9) 100%)",
+            backdropFilter: "blur(30px)"
+          }}>
+            
+            {/* Success Message */}
+            {isSubmitted && (
+              <div className={`mb-6 p-4 rounded-lg border ${
+                theme === "dark" 
+                  ? "bg-green-900/20 border-green-500/50 text-green-400"
+                  : "bg-green-50 border-green-300 text-green-700"
+              } flex items-center space-x-3 animate-in slide-in-from-top-4 duration-300`}>
+                <CheckCircle className="w-5 h-5" />
+                <p className="font-medium">
+                  Message sent successfully! I'll get back to you soon.
+                </p>
+              </div>
+            )}
+
+            <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Input
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Your Name"
+                    required
+                    disabled={isSubmitting}
+                    className={`${
+                      theme === "dark" 
+                        ? "bg-gray-900/50 border-gray-600 text-white placeholder:text-gray-400 focus:border-neon-blue focus:ring-neon-blue/20" 
+                        : "bg-pink-50/50 border-pink-300 text-gray-900 placeholder:text-gray-500 focus:border-pink-500 focus:ring-pink-500/20"
+                    } disabled:opacity-50`}
+                  />
+                </div>
+                <div>
+                  <Input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="Your Email"
+                    required
+                    disabled={isSubmitting}
+                    className={`${
+                      theme === "dark" 
+                        ? "bg-gray-900/50 border-gray-600 text-white placeholder:text-gray-400 focus:border-neon-blue focus:ring-neon-blue/20" 
+                        : "bg-pink-50/50 border-pink-300 text-gray-900 placeholder:text-gray-500 focus:border-pink-500 focus:ring-pink-500/20"
+                    } disabled:opacity-50`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Textarea
+                  name="message"
+                  value={formData.message}
+                  onChange={handleInputChange}
+                  placeholder="Your Message"
+                  rows={6}
+                  required
+                  disabled={isSubmitting}
+                  className={`${
+                    theme === "dark" 
+                      ? "bg-gray-900/50 border-gray-600 text-white placeholder:text-gray-400 focus:border-neon-blue focus:ring-neon-blue/20" 
+                      : "bg-pink-50/50 border-pink-300 text-gray-900 placeholder:text-gray-500 focus:border-pink-500 focus:ring-pink-500/20"
+                  } resize-none disabled:opacity-50`}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                size="lg"
+                disabled={isSubmitting || isSubmitted}
+                className={`w-full ${
+                  theme === "dark" 
+                    ? "bg-gradient-to-r from-neon-pink to-neon-purple hover:from-neon-purple hover:to-neon-pink" 
+                    : "bg-gradient-to-r from-pink-500 to-rose-500 hover:from-rose-500 hover:to-pink-500 shadow-lg shadow-pink-500/30"
+                } text-white font-semibold transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                      <span>Sending...</span>
+                    </>
+                  ) : isSubmitted ? (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Sent Successfully!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Send Message</span>
+                    </>
+                  )}
+                </div>
+              </Button>
+            </form>
+          </Card>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className={`${
+        theme === "dark" ? "border-t border-gray-800" : "border-t border-gray-300"
+      } py-8`}>
+        <div className="container mx-auto px-4 text-center">
+            <p className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>
+            © 2026 Aditya Dhanraj Singh. All rights reserved.
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+export default Index;
